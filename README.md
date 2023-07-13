@@ -3,6 +3,11 @@ Generate reports for your migration from ClickOps to Terraform.
 
 ![demo_gif](assets/tfdiff.gif)
 
+## Features
+- [x] Output list of unmanaged resources to CSV
+- [x] CLI reporting with asset breakdown by region and resource type
+- [x] Multi-region scan support
+
 ## Installation
 
 This program may be installed by downloading the latest executable from the releases page, moving it into your path, and making it executable. See the example below for Unix-based environments:
