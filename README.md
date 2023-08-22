@@ -54,3 +54,5 @@ Given Tfdiff makes `num_target_regions * num_resource_types` queries for each di
 - [ ] The ability to ignore resources by ARN/Identifier via .tfdiff_ignore files
 - [ ] Support for GCP, Azure & DigitalOcean
 - [ ] (Possible) Scan Caching
+- [ ] Support for multiple Terraform projects and workspaces at once
+- [ ] Automated config drift detection
