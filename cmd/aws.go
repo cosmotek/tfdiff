@@ -15,6 +15,7 @@ import (
 	"github.com/cosmotek/tfdiff/scanner"
 	"github.com/cosmotek/tfdiff/scanner/aws"
 	"github.com/cosmotek/tfdiff/terraform"
+	"github.com/gobwas/glob"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/samber/lo"
@@ -81,6 +82,17 @@ var awsCmd = &cobra.Command{
 
 		s.Prefix = "computing diff "
 		s.Restart()
+
+		for _, globStr := range ignoreAssetsGlobs {
+			globC, err := glob.Compile(globStr)
+			if err != nil {
+				return fmt.Errorf("failed to compile glob '%s' from ignorelist: %w", globStr, err)
+			}
+
+			assetList = lo.Filter(assetList, func(asset scanner.Asset, _ int) bool {
+				return !globC.Match(asset.Identifier)
+			})
+		}
 
 		managedResources := lo.Filter(assetList, func(asset scanner.Asset, _ int) bool {
 			for _, tfrsc := range pullState.Resources {

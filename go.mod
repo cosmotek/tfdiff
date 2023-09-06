@@ -5,6 +5,7 @@ go 1.20
 require (
 	github.com/aws/aws-sdk-go v1.44.298
 	github.com/briandowns/spinner v1.23.0
+	github.com/gobwas/glob v0.2.3
 	github.com/rs/zerolog v1.29.1
 	github.com/samber/lo v1.38.1
 	github.com/spf13/cobra v1.7.0
