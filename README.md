@@ -14,8 +14,9 @@ Generate reports for your migration from ClickOps to Terraform.
 
 This program may be installed by downloading the latest executable from the releases page, moving it into your path, and making it executable. See the example below for Unix-based environments:
 ```sh
-wget https://github.com/cosmotek/tfdiff/releases/download/1.0.0-rc1/tfdiff-linux-amd64
-mv tfdiff-linux-amd64 /usr/local/bin/tfdiff
+wget https://github.com/cosmotek/tfdiff/releases/download/v1.1.0-rc/tfdiff-linux-amd64.zip
+unzip tfdiff-linux-amd64.zip
+mv tfdiff /usr/local/bin/tfdiff
 chmod +x /usr/local/bin/tfdiff
 ```
 
