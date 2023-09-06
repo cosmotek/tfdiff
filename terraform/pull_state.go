@@ -2,6 +2,7 @@ package terraform
 
 import (
 	"encoding/json"
+	"fmt"
 	"os/exec"
 	"time"
 )
@@ -18,13 +19,13 @@ func PullState() (PullStateOutput, error) {
 
 	data, err := exec.Command("terraform", "state", "pull").Output()
 	if err != nil {
-		return PullStateOutput{}, err
+		return PullStateOutput{}, fmt.Errorf("failed to execute 'terraform state pull': %w", err)
 	}
 
 	output := PullStateOutput{}
 	err = json.Unmarshal(data, &output)
 	if err != nil {
-		return PullStateOutput{}, err
+		return PullStateOutput{}, fmt.Errorf("failed to parse terraform state json: %w", err)
 	}
 
 	return output, nil

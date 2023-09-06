@@ -24,7 +24,7 @@ import (
 
 var awsRegions []string
 var defaultAwsRegions = aws.Regions
-var resourceExplorerRegion string
+var excludeAwsResourceTypes []string
 var outputFile string
 
 // awsCmd represents the aws command
@@ -49,10 +49,10 @@ var awsCmd = &cobra.Command{
 		}
 		time.Sleep(time.Second * 3) // sleep to allow cancellation
 
-		awsScanner, err := aws.New(logger, aws.Config{
-			ScanRegions:               awsRegions,
-			ResourceExplorerAWSRegion: resourceExplorerRegion,
-			MaxConcurrency:            1,
+		awsScanner, err := aws.New(cmd.Context(), logger, aws.Config{
+			ScanRegions:          awsRegions,
+			ExcludeResourceTypes: excludeAwsResourceTypes,
+			MaxConcurrency:       1,
 		})
 		if err != nil {
 			return err
@@ -67,7 +67,7 @@ var awsCmd = &cobra.Command{
 		s.Start()
 		defer s.Stop()
 
-		assetList, err := awsScanner.RunScan()
+		assetList, err := awsScanner.RunScan(cmd.Context())
 		if err != nil {
 			return err
 		}
@@ -161,8 +161,8 @@ var awsCmd = &cobra.Command{
 }
 
 func init() {
-	awsCmd.Flags().StringVarP(&resourceExplorerRegion, "resource-explorer-region", "e", "us-east-1", "specify which aws region the resource explorer instance is active in")
 	awsCmd.Flags().StringSliceVarP(&awsRegions, "regions", "r", defaultAwsRegions, "specify which aws regions to scan for inventory")
+	awsCmd.Flags().StringSliceVarP(&excludeAwsResourceTypes, "exclude-resources", "e", []string{}, "specify which aws resource types to exclude from scans")
 	awsCmd.Flags().StringVarP(&outputFile, "output-file", "o", "", "specify the file to output diff results in CSV")
 
 	rootCmd.AddCommand(awsCmd)

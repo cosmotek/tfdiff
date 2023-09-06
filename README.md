@@ -7,6 +7,8 @@ Generate reports for your migration from ClickOps to Terraform.
 - [x] Output list of unmanaged resources to CSV
 - [x] CLI reporting with asset breakdown by region and resource type
 - [x] Multi-region scan support
+- [x] Support for AWS SSO managed credentials
+- [x] Resource type exclusion filtering
 
 ## Installation
 
@@ -39,6 +41,17 @@ export AWS_PROFILE=development
 tfdiff aws --regions=us-east-1,us-east-2 --output-file unmanaged_resources.csv
 ```
 
+### Ignore Files
+
+In order to ignore one or many resources when scanning the system, create a file named `.tfdiff_ignore` located within the Terraform project directory you've been operating in. Just specify one ARN or glob per a line, save, and run tfdiff. Ignore files are automatically detected and validated before each scan.
+
+Here's a little example:
+```
+arn:aws:rds:us-east-1:0123456789:*
+arn:aws:ecs:us-east-1:0123456789:*
+arn:aws:ecs:us-east-1:0123456789:task-definition/amazing-api:123
+```
+
 For more configuration options, run `tfdiff aws --help`.
 
 ## Known issues & limitations
@@ -50,8 +63,8 @@ Given Tfdiff makes `num_target_regions * num_resource_types` queries for each di
 
 ## Planned features
 
-- [ ] Resource Type Filters
-- [ ] The ability to ignore resources by ARN/Identifier via .tfdiff_ignore files
+- [x] Resource Type Filters
+- [x] The ability to ignore resources by ARN/Identifier via .tfdiff_ignore files
 - [ ] Support for GCP, Azure & DigitalOcean
 - [ ] (Possible) Scan Caching
 - [ ] Support for multiple Terraform projects and workspaces at once

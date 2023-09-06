@@ -1,34 +1,36 @@
 package aws
 
 import (
+	"context"
+	"errors"
 	"fmt"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/service/resourceexplorer2"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/resourceexplorer2"
+	"github.com/aws/aws-sdk-go-v2/service/resourceexplorer2/types"
+	"github.com/aws/smithy-go"
 )
 
-func getResources(rsrc *resourceexplorer2.ResourceExplorer2, region, resourceType string) ([]*resourceexplorer2.Resource, error) {
+func getResources(ctx context.Context, rsrc *resourceexplorer2.Client, region, resourceType string) ([]types.Resource, error) {
 	query := fmt.Sprintf("arn region:%s resourcetype:%s", region, resourceType)
 
-	resources := []*resourceexplorer2.Resource{}
+	resources := []types.Resource{}
 	var token *string
 
 	for {
-		output, err := rsrc.Search(&resourceexplorer2.SearchInput{
-			MaxResults:  aws.Int64(1000), // this limit is set by AWS
+		output, err := rsrc.Search(ctx, &resourceexplorer2.SearchInput{
+			MaxResults:  aws.Int32(1000), // this limit is set by AWS
 			NextToken:   token,
 			QueryString: aws.String(query),
 		})
 		if err != nil {
-			if aerr, ok := err.(awserr.Error); ok {
-				switch aerr.Code() {
-				case resourceexplorer2.ErrCodeUnauthorizedException:
-					return nil, fmt.Errorf("Failed to query aws resource_explorer2: %w\n\nYou may need to activate resource_explorer2 in the %s region.\n", err, region)
-				default:
-					return nil, err
-				}
+			var oe *smithy.OperationError
+			if errors.As(err, &oe) {
+				// TODO update to: "Failed to query aws resource_explorer2: %w\n\nYou may need to activate resource_explorer2 in the %s region.\n"
+				return nil, fmt.Errorf("ResourceExplorer2.Search returned an error: %w", err)
 			}
+
+			return nil, fmt.Errorf("unknown error was returned: %w", err)
 		}
 
 		resources = append(resources, output.Resources...)

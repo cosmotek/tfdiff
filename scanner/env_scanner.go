@@ -1,5 +1,7 @@
 package scanner
 
+import "context"
+
 type EnvironmentScanner interface {
-	RunScan() (AssetList, error)
+	RunScan(context.Context) (AssetList, error)
 }

@@ -1,17 +1,20 @@
 package aws
 
 import (
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/resourceexplorer2"
+	"context"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/resourceexplorer2"
+	"github.com/aws/aws-sdk-go-v2/service/resourceexplorer2/types"
 )
 
-func getResourceTypes(rsrc *resourceexplorer2.ResourceExplorer2) ([]*resourceexplorer2.SupportedResourceType, error) {
-	types := []*resourceexplorer2.SupportedResourceType{}
+func getResourceTypes(ctx context.Context, rsrc *resourceexplorer2.Client) ([]types.SupportedResourceType, error) {
+	types := []types.SupportedResourceType{}
 
 	var nextToken *string
 	for {
-		output, err := rsrc.ListSupportedResourceTypes(&resourceexplorer2.ListSupportedResourceTypesInput{
-			MaxResults: aws.Int64(1000),
+		output, err := rsrc.ListSupportedResourceTypes(ctx, &resourceexplorer2.ListSupportedResourceTypesInput{
+			MaxResults: aws.Int32(1000),
 			NextToken:  nextToken,
 		})
 		if err != nil {
