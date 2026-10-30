@@ -6,12 +6,12 @@ import (
 )
 
 func GetWorkspace() (string, error) {
-	_, err := WhichTerraform()
+	bin, err := WhichTerraform()
 	if err != nil {
 		return "", err
 	}
 
-	output, err := exec.Command("terraform", "workspace", "show").Output()
+	output, err := exec.Command(bin, "workspace", "show").Output()
 	if err != nil {
 		return "", err
 	}
