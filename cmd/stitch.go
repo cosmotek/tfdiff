@@ -18,27 +18,39 @@ import (
 // stitchStates holds the managed-resource identifiers declared across several
 // projects' Terraform state files, keyed for diffing against a single scan.
 type stitchStates struct {
-	// coverage maps a normalized (lowercased) resource id to the projects
-	// whose state declares it. More than one project is a conflict.
+	// coverage maps a normalized resource identifier to the projects whose
+	// state declares it. More than one project is a conflict.
 	coverage map[string][]string
-	// declared counts the unique ids each project declares, used to derive
-	// how much of a project's state was not found in the live scan.
+	// declared counts the unique identifiers each project declares, used to
+	// derive how much of a project's state was not found in the live scan.
 	declared map[string]int
 	// projects lists every state file loaded, in sorted order.
 	projects []string
+	// normalize canonicalizes an identifier before matching, applied to both
+	// state and scan sides so they compare the same way.
+	normalize func(string) string
 }
 
+// The keyers below pick which state attribute a provider matches on, and the
+// normalizers canonicalize it: AWS matches arns exactly, Azure matches ids
+// case-insensitively.
+func arnKey(arn, id string) string { return arn }
+func idKey(arn, id string) string  { return id }
+func asIs(s string) string         { return s }
+
 // loadStitchStates reads every *.json file in dir as a Terraform state export,
-// using each file's name (without extension) as the project name.
-func loadStitchStates(dir string) (*stitchStates, error) {
+// using each file's name (without extension) as the project name. keyOf selects
+// the identifier attribute to index, and normalize canonicalizes it.
+func loadStitchStates(dir string, keyOf func(arn, id string) string, normalize func(string) string) (*stitchStates, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read stitch dir %s: %w", dir, err)
 	}
 
 	ss := &stitchStates{
-		coverage: map[string][]string{},
-		declared: map[string]int{},
+		coverage:  map[string][]string{},
+		declared:  map[string]int{},
+		normalize: normalize,
 	}
 
 	for _, entry := range entries {
@@ -59,18 +71,18 @@ func loadStitchStates(dir string) (*stitchStates, error) {
 			}
 
 			for _, instance := range resource.Instances {
-				id := instance.Attributes.ID
-				if id == "" {
+				raw := keyOf(instance.Attributes.Arn, instance.Attributes.ID)
+				if raw == "" {
 					continue
 				}
 
-				normalized := strings.ToLower(id)
-				if seen[normalized] {
+				key := normalize(raw)
+				if seen[key] {
 					continue
 				}
 
-				seen[normalized] = true
-				ss.coverage[normalized] = append(ss.coverage[normalized], project)
+				seen[key] = true
+				ss.coverage[key] = append(ss.coverage[key], project)
 			}
 		}
 
@@ -90,7 +102,7 @@ func loadStitchStates(dir string) (*stitchStates, error) {
 // loaded state.
 func (ss *stitchStates) managed(assets scanner.AssetList) scanner.AssetList {
 	return lo.Filter(assets, func(asset scanner.Asset, _ int) bool {
-		_, ok := ss.coverage[strings.ToLower(asset.Identifier)]
+		_, ok := ss.coverage[ss.normalize(asset.Identifier)]
 		return ok
 	})
 }
@@ -99,7 +111,7 @@ func (ss *stitchStates) managed(assets scanner.AssetList) scanner.AssetList {
 func (ss *stitchStates) report(managed scanner.AssetList) {
 	live := map[string]int{}
 	for _, asset := range managed {
-		for _, project := range ss.coverage[strings.ToLower(asset.Identifier)] {
+		for _, project := range ss.coverage[ss.normalize(asset.Identifier)] {
 			live[project]++
 		}
 	}
