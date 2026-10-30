@@ -108,7 +108,9 @@ chmod +x /usr/local/bin/tfdiff
 
 ## Usage
 
-Before running tfdiff, you will need to have the following:
+### AWS
+
+Before running tfdiff against AWS, you will need to have the following:
 - An AWS account with Resource Explorer 2 enabled
 - A valid AWS credentials file with a profile for the account you want to diff
 - Terraform installed on your machine
@@ -128,9 +130,32 @@ export AWS_PROFILE=development
 tfdiff aws --regions=us-east-1,us-east-2 --output-file unmanaged_resources.csv
 ```
 
+### Azure
+
+Before running tfdiff against Azure, you will need to have the following:
+- Azure credentials available to the default credential chain (for example via `az login`, environment variables, or a managed identity)
+- Reader access to the subscriptions you want to diff
+- Terraform installed on your machine
+
+tfdiff uses [Azure Resource Graph](https://learn.microsoft.com/en-us/azure/governance/resource-graph/overview) to inventory resources, so a single query spans every requested subscription. Managed resources are matched against the `id` attribute of resources in your Terraform state (case-insensitively, since Azure resource IDs are case-insensitive).
+
+```sh
+# open your terraform project
+cd my-terraform-project
+
+# select the terraform workspace you want to diff (assuming you have one)
+terraform workspace select development
+
+# authenticate with azure
+az login
+
+# run tfdiff against two subscriptions (instead of defaulting to all accessible), outputing the list of unmanaged resources to a csv file
+tfdiff azure --subscriptions=00000000-0000-0000-0000-000000000000,11111111-1111-1111-1111-111111111111 --output-file unmanaged_resources.csv
+```
+
 ### Ignore Files
 
-In order to ignore one or many resources when scanning the system, create a file named `.tfdiff_ignore` located within the Terraform project directory you've been operating in. Just specify one ARN or glob per a line, save, and run tfdiff. Ignore files are automatically detected and validated before each scan.
+In order to ignore one or many resources when scanning the system, create a file named `.tfdiff_ignore` located within the Terraform project directory you've been operating in. Just specify one identifier (an AWS ARN or Azure resource ID) or glob per a line, save, and run tfdiff. Ignore files are automatically detected and validated before each scan.
 
 Here's a little example:
 ```
@@ -139,7 +164,7 @@ arn:aws:ecs:us-east-1:0123456789:*
 arn:aws:ecs:us-east-1:0123456789:task-definition/amazing-api:123
 ```
 
-For more configuration options, run `tfdiff aws --help`.
+For more configuration options, run `tfdiff aws --help` or `tfdiff azure --help`.
 
 ## Known issues & limitations
 
@@ -152,7 +177,8 @@ Given Tfdiff makes `num_target_regions * num_resource_types` queries for each di
 
 - [x] Resource Type Filters
 - [x] The ability to ignore resources by ARN/Identifier via .tfdiff_ignore files
-- [ ] Support for GCP, Azure & DigitalOcean
+- [x] Support for Azure (via Azure Resource Graph)
+- [ ] Support for GCP & DigitalOcean
 - [ ] (Possible) Scan Caching
 - [ ] Support for multiple Terraform projects and workspaces at once
 - [ ] Automated config drift detection
