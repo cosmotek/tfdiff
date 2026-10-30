@@ -7,19 +7,32 @@ import (
 	"time"
 )
 
+// binaryCandidates lists the IaC CLIs tfdiff can drive, in priority order.
+// OpenTofu is preferred, with HashiCorp Terraform as a fallback.
+var binaryCandidates = []string{"tofu", "terraform"}
+
+// WhichTerraform returns the path to the first available IaC CLI (tofu or
+// terraform), or an error if neither is on $PATH.
 func WhichTerraform() (string, error) {
-	return exec.LookPath("terraform")
+	for _, name := range binaryCandidates {
+		path, err := exec.LookPath(name)
+		if err == nil {
+			return path, nil
+		}
+	}
+
+	return "", fmt.Errorf("neither tofu nor terraform was found on $PATH")
 }
 
 func PullState() (PullStateOutput, error) {
-	_, err := WhichTerraform()
+	bin, err := WhichTerraform()
 	if err != nil {
 		return PullStateOutput{}, err
 	}
 
-	data, err := exec.Command("terraform", "state", "pull").Output()
+	data, err := exec.Command(bin, "state", "pull").Output()
 	if err != nil {
-		return PullStateOutput{}, fmt.Errorf("failed to execute 'terraform state pull': %w", err)
+		return PullStateOutput{}, fmt.Errorf("failed to execute '%s state pull': %w", bin, err)
 	}
 
 	output := PullStateOutput{}
