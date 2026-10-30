@@ -84,7 +84,8 @@ var azureCmd = &cobra.Command{
 			s.Prefix = "loading terraform states "
 			s.Restart()
 
-			stitch, err = loadStitchStates(azureStitchDir)
+			// Azure matches the state `id` attribute, case-insensitively.
+			stitch, err = loadStitchStates(azureStitchDir, idKey, strings.ToLower)
 			if err != nil {
 				return err
 			}

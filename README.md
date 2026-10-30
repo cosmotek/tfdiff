@@ -153,9 +153,9 @@ az login
 tfdiff azure --subscriptions=00000000-0000-0000-0000-000000000000,11111111-1111-1111-1111-111111111111 --output-file unmanaged_resources.csv
 ```
 
-#### Diffing many projects at once (`--stitch`)
+### Diffing many projects at once (`--stitch`)
 
-The default Azure run diffs one project's state against your whole accessible tenant, so when your infrastructure is split across many state files each run over-reports "unmanaged" — every other project's resources look orphaned. `--stitch` diffs a directory of pre-pulled state files against a single scan instead, and reports which project manages what.
+Available on both `aws` and `azure`. A normal run diffs one project's state against your whole account/tenant, so when your infrastructure is split across many state files each run over-reports "unmanaged" — every other project's resources look orphaned. `--stitch` diffs a directory of pre-pulled state files against a single scan instead, and reports which project manages what. (AWS matches resources by `arn`, Azure by `id`.)
 
 Each `*.json` file in the directory is treated as one project, named after the file. Pull them first (one per project), then stitch:
 
@@ -166,12 +166,12 @@ tofu -chdir=infra/network   state pull > states/network.json
 tofu -chdir=infra/apps      state pull > states/apps.json
 
 # one scan, diffed against every state at once
-tfdiff azure --stitch states/
+tfdiff azure --stitch states/     # or: tfdiff aws --stitch states/
 ```
 
 On top of the usual managed/unmanaged breakdown, `--stitch` reports:
 - **coverage by project** — how many live resources each project's state manages
-- **stale state** — ids declared in a state but not found live (deleted out-of-band, outside the scan scope, or a composite id Resource Graph does not surface, such as role assignments)
+- **stale state** — identifiers declared in a state but not found live (deleted out-of-band, outside the scan scope, or a composite id the inventory API does not surface, such as Azure role assignments)
 - **conflicts** — a resource claimed by more than one project's state
 
 ### Ignore Files

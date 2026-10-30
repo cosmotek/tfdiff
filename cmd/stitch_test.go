@@ -35,7 +35,7 @@ func TestLoadStitchStates(t *testing.T) {
 	// a non-json file must be skipped.
 	writeState(t, dir, "notes.txt", "ignore me")
 
-	ss, err := loadStitchStates(dir)
+	ss, err := loadStitchStates(dir, idKey, strings.ToLower)
 	if err != nil {
 		t.Fatalf("loadStitchStates: %v", err)
 	}
@@ -65,7 +65,7 @@ func TestManagedMatchesCaseInsensitively(t *testing.T) {
 		{"mode":"managed","type":"azurerm_linux_virtual_machine","name":"vm","instances":[{"attributes":{"id":"`+vmID+`"}}]}
 	]}`)
 
-	ss, err := loadStitchStates(dir)
+	ss, err := loadStitchStates(dir, idKey, strings.ToLower)
 	if err != nil {
 		t.Fatalf("loadStitchStates: %v", err)
 	}
@@ -86,8 +86,33 @@ func TestManagedMatchesCaseInsensitively(t *testing.T) {
 }
 
 func TestLoadStitchStatesEmptyDir(t *testing.T) {
-	if _, err := loadStitchStates(t.TempDir()); err == nil {
+	if _, err := loadStitchStates(t.TempDir(), idKey, strings.ToLower); err == nil {
 		t.Fatal("expected error for a directory with no state files")
+	}
+}
+
+func TestManagedAWSMatchesArnExactly(t *testing.T) {
+	const arn = "arn:aws:s3:::my-bucket"
+	dir := t.TempDir()
+	// AWS state keys on arn, not id, and must match case-sensitively.
+	writeState(t, dir, "storage.json", `{"resources":[
+		{"mode":"managed","type":"aws_s3_bucket","name":"b","instances":[{"attributes":{"arn":"`+arn+`","id":"my-bucket"}}]}
+	]}`)
+
+	ss, err := loadStitchStates(dir, arnKey, asIs)
+	if err != nil {
+		t.Fatalf("loadStitchStates: %v", err)
+	}
+
+	assets := scanner.AssetList{
+		{Identifier: arn},                      // managed
+		{Identifier: strings.ToUpper(arn)},     // different case -> unmanaged (arns are case-sensitive)
+		{Identifier: "arn:aws:s3:::untracked"}, // unmanaged
+	}
+
+	managed := ss.managed(assets)
+	if len(managed) != 1 || managed[0].Identifier != arn {
+		t.Fatalf("managed = %v, want exactly [%s]", managed, arn)
 	}
 }
 
@@ -105,7 +130,7 @@ func TestReportCoverageAndStale(t *testing.T) {
 		{"mode":"managed","type":"t","name":"d","instances":[{"attributes":{"id":"`+diskID+`"}}]}
 	]}`)
 
-	ss, err := loadStitchStates(dir)
+	ss, err := loadStitchStates(dir, idKey, strings.ToLower)
 	if err != nil {
 		t.Fatalf("loadStitchStates: %v", err)
 	}

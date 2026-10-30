@@ -26,6 +26,7 @@ var awsRegions []string
 var defaultAwsRegions = aws.Regions
 var excludeAwsResourceTypes []string
 var outputFile string
+var awsStitchDir string
 
 // awsCmd represents the aws command
 var awsCmd = &cobra.Command{
@@ -43,7 +44,11 @@ var awsCmd = &cobra.Command{
 			return errors.New("$AWS_PROFILE must not be empty")
 		}
 
-		fmt.Printf("tfdiff starting: terraform_workspace=%s aws_profile=%s\n", terraformWorkspaceName, awsProfile)
+		if awsStitchDir != "" {
+			fmt.Printf("tfdiff starting: stitch_dir=%s aws_profile=%s\n", awsStitchDir, awsProfile)
+		} else {
+			fmt.Printf("tfdiff starting: terraform_workspace=%s aws_profile=%s\n", terraformWorkspaceName, awsProfile)
+		}
 		if len(awsRegions) == len(defaultAwsRegions) {
 			fmt.Println("warning: scanning all regions may take a while")
 		}
@@ -72,12 +77,27 @@ var awsCmd = &cobra.Command{
 			return err
 		}
 
-		s.Prefix = "reading terraform state "
-		s.Restart()
+		// In stitch mode state is read from pre-pulled files covering many
+		// projects at once; otherwise a single state is pulled from the CWD.
+		var stitch *stitchStates
+		var pullState terraform.PullStateOutput
+		if awsStitchDir != "" {
+			s.Prefix = "loading terraform states "
+			s.Restart()
 
-		pullState, err := terraform.PullState()
-		if err != nil {
-			return err
+			// AWS matches the state `arn` attribute exactly.
+			stitch, err = loadStitchStates(awsStitchDir, arnKey, asIs)
+			if err != nil {
+				return err
+			}
+		} else {
+			s.Prefix = "reading terraform state "
+			s.Restart()
+
+			pullState, err = terraform.PullState()
+			if err != nil {
+				return err
+			}
 		}
 
 		s.Prefix = "computing diff "
@@ -94,17 +114,22 @@ var awsCmd = &cobra.Command{
 			})
 		}
 
-		managedResources := lo.Filter(assetList, func(asset scanner.Asset, _ int) bool {
-			for _, tfrsc := range pullState.Resources {
-				for _, inst := range tfrsc.Instances {
-					if asset.Identifier == inst.Attributes.Arn {
-						return true
+		var managedResources scanner.AssetList
+		if stitch != nil {
+			managedResources = stitch.managed(assetList)
+		} else {
+			managedResources = lo.Filter(assetList, func(asset scanner.Asset, _ int) bool {
+				for _, tfrsc := range pullState.Resources {
+					for _, inst := range tfrsc.Instances {
+						if asset.Identifier == inst.Attributes.Arn {
+							return true
+						}
 					}
 				}
-			}
 
-			return false
-		})
+				return false
+			})
+		}
 
 		unmanagedResources := lo.Filter(assetList, func(asset scanner.Asset, _ int) bool {
 			for _, rsrc := range managedResources {
@@ -156,6 +181,10 @@ var awsCmd = &cobra.Command{
 			}
 		}
 
+		if stitch != nil {
+			stitch.report(managedResources)
+		}
+
 		return nil
 	},
 }
@@ -164,6 +193,7 @@ func init() {
 	awsCmd.Flags().StringSliceVarP(&awsRegions, "regions", "r", defaultAwsRegions, "specify which aws regions to scan for inventory")
 	awsCmd.Flags().StringSliceVarP(&excludeAwsResourceTypes, "exclude-resources", "e", []string{}, "specify which aws resource types to exclude from scans")
 	awsCmd.Flags().StringVarP(&outputFile, "output-file", "o", "", "specify the file to output diff results in CSV")
+	awsCmd.Flags().StringVar(&awsStitchDir, "stitch", "", "diff against every *.json state file in this directory at once, reporting per-project coverage (filename is the project name)")
 
 	rootCmd.AddCommand(awsCmd)
 }
