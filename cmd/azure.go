@@ -25,6 +25,7 @@ import (
 var azureSubscriptions []string
 var excludeAzureResourceTypes []string
 var azureOutputFile string
+var azureStitchDir string
 
 // azureCmd represents the azure command
 var azureCmd = &cobra.Command{
@@ -42,7 +43,11 @@ var azureCmd = &cobra.Command{
 			subscriptionScope = strings.Join(azureSubscriptions, ",")
 		}
 
-		fmt.Printf("tfdiff starting: terraform_workspace=%s azure_subscriptions=%s\n", terraformWorkspaceName, subscriptionScope)
+		if azureStitchDir != "" {
+			fmt.Printf("tfdiff starting: stitch_dir=%s azure_subscriptions=%s\n", azureStitchDir, subscriptionScope)
+		} else {
+			fmt.Printf("tfdiff starting: terraform_workspace=%s azure_subscriptions=%s\n", terraformWorkspaceName, subscriptionScope)
+		}
 		if len(azureSubscriptions) == 0 {
 			fmt.Println("warning: scanning all accessible subscriptions may take a while")
 		}
@@ -71,12 +76,26 @@ var azureCmd = &cobra.Command{
 			return err
 		}
 
-		s.Prefix = "reading terraform state "
-		s.Restart()
+		// In stitch mode state is read from pre-pulled files covering many
+		// projects at once; otherwise a single state is pulled from the CWD.
+		var stitch *stitchStates
+		var pullState terraform.PullStateOutput
+		if azureStitchDir != "" {
+			s.Prefix = "loading terraform states "
+			s.Restart()
 
-		pullState, err := terraform.PullState()
-		if err != nil {
-			return err
+			stitch, err = loadStitchStates(azureStitchDir)
+			if err != nil {
+				return err
+			}
+		} else {
+			s.Prefix = "reading terraform state "
+			s.Restart()
+
+			pullState, err = terraform.PullState()
+			if err != nil {
+				return err
+			}
 		}
 
 		s.Prefix = "computing diff "
@@ -93,19 +112,24 @@ var azureCmd = &cobra.Command{
 			})
 		}
 
-		managedResources := lo.Filter(assetList, func(asset scanner.Asset, _ int) bool {
-			for _, tfrsc := range pullState.Resources {
-				for _, inst := range tfrsc.Instances {
-					// azurerm stores the full ARM resource ID in the id
-					// attribute; Azure resource IDs are case-insensitive.
-					if strings.EqualFold(asset.Identifier, inst.Attributes.ID) {
-						return true
+		var managedResources scanner.AssetList
+		if stitch != nil {
+			managedResources = stitch.managed(assetList)
+		} else {
+			managedResources = lo.Filter(assetList, func(asset scanner.Asset, _ int) bool {
+				for _, tfrsc := range pullState.Resources {
+					for _, inst := range tfrsc.Instances {
+						// azurerm stores the full ARM resource ID in the id
+						// attribute; Azure resource IDs are case-insensitive.
+						if strings.EqualFold(asset.Identifier, inst.Attributes.ID) {
+							return true
+						}
 					}
 				}
-			}
 
-			return false
-		})
+				return false
+			})
+		}
 
 		unmanagedResources := lo.Filter(assetList, func(asset scanner.Asset, _ int) bool {
 			for _, rsrc := range managedResources {
@@ -157,6 +181,10 @@ var azureCmd = &cobra.Command{
 			}
 		}
 
+		if stitch != nil {
+			stitch.report(managedResources)
+		}
+
 		return nil
 	},
 }
@@ -165,6 +193,7 @@ func init() {
 	azureCmd.Flags().StringSliceVarP(&azureSubscriptions, "subscriptions", "s", []string{}, "specify which azure subscription ids to scan (defaults to all accessible)")
 	azureCmd.Flags().StringSliceVarP(&excludeAzureResourceTypes, "exclude-resources", "e", []string{}, "specify which azure resource types to exclude from scans")
 	azureCmd.Flags().StringVarP(&azureOutputFile, "output-file", "o", "", "specify the file to output diff results in CSV")
+	azureCmd.Flags().StringVar(&azureStitchDir, "stitch", "", "diff against every *.json state file in this directory at once, reporting per-project coverage (filename is the project name)")
 
 	rootCmd.AddCommand(azureCmd)
 }
